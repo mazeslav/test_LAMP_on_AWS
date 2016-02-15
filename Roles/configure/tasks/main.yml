@@ -1,0 +1,89 @@
+ ---
+- hosts: test
+  remote_user: XXXX
+  sudo: yes
+  tasks:
+
+#NGINX
+  
+  - name:Install nginx
+    apt: pkg=nginx state=present
+	
+  - name: Configure nginx
+    template: src=..//templates/nginx_conf.j2 dest=/etc/nginx/site-available/test.com
+
+  - name: Symbol link
+    command: ln -s /etc/nginx/sites-available/test.com /etc/nginx/sites-enabled/test.com
+  
+  - name: Start nginx
+    service: name=nginx state=started enabled=yes
+
+#Apache
+
+  - name: Install Apache Web Server
+    apt: pkg=httpd state=latest
+
+  - name: Change ports
+    lineinfile: "dest=/etc/apache2/ports.conf regexp='NameVirtualHost *:80' line='NameVirtualHost *:8080'"
+
+  - name: Copy default conf
+    command: cp /etc/apache2/sites-available/000-default.conf /etc/apache2/sites-available/test.com.conf
+
+  - name: Change ports
+    lineinfile: "dest=/etc/apache2/sites-available/test.com.conf regexp='<VirtualHost *:80>' line='<VirtualHost *:8080>'"
+
+  - name: Insert serverName
+    lineinfile: dest=/etc/apache2/sites-available/test.com.conf regexp='ServerAdmin' insertafter='ServerAdmin' line='ServerName test.com'
+
+  - name: Insert alias
+    lineinfile: dest=/etc/apache2/sites-available/test.com.conf regexp='ServerName test.com' insertafter='ServerName test.com' line='ServerAlias www.test.com'
+
+  - name: Create directory
+    command: mkdir -p /var/www/test.com/
+
+  - name: Change permissions
+    command: chmod -R 755 /var/www
+
+  - name: Keepalive off
+    lineinfile: dest=/etc/apache2/apache2.conf regexp='KeepAlive On' line='KeepAlive Off'
+
+  - name: Install rpaf
+    apt: pkg=libapache2-mod-rpaf state=present
+
+  - name: Enable site
+    command: a2ensite test.com.conf
+
+  - name: create a new file with lineinfile
+    lineinfile: dest=/var/www/test.com/index.php
+                regexp='^'
+                line=''
+                state=present
+                create=True
+
+  - name: add phpinfo to the file
+    lineinfile: dest=/var/www/lighttpd/phpinfo/index.php
+                regexp='^'
+                line='<?php\nphpinfo();\n?>'
+                state=present
+
+#PHP
+
+  - name: Install PHP
+    apt: pkg=php5 state=present
+
+  - name: Install Apache module
+    apt: pkg=libapache2-mod-php5 state=present
+
+  - name: Install Imagemagick
+    apt: pkg=imagemagick state=present
+
+  - name: Install php-imagick
+    apt: pkg=php5-imagick state=present
+
+  - name: Install PDO
+    apt: pkg=php5-mysql state=present
+
+  - name: start apache
+    service: name=httpd state=restarted enabled=yes
+ ...
+

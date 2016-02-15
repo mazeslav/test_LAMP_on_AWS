@@ -1,0 +1,18 @@
+ ---
+ #This playbook deploys LAMP stack
+ - name: creates necessary resources in AWS
+   roles:
+     - { role: provision, tags: "provision" }
+
+ - name: installs all necessary software and configures packages as needed
+   roles:
+     - {role: configure, tags: "configure"}
+
+ - name: tests that deployment
+   roles:
+     - {role: test, tags: "test"}
+
+  - name: destroy infrastructure
+   roles:
+     - {role: destroy, tags: "destroy"}
+ ...

@@ -1,0 +1,81 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    region: ap-southeast-2
+    prefix: test
+  vars_files:
+    - host_vars/test_info
+  tasks:
+     
+    - name: delete DNS record
+      local_action:
+        module: route53:
+        command: delete
+        zone: "{{ domain }}"
+        record: "www.{{ domain }}"
+        ttl: 60
+        type: CNAME
+        value: "{{ prefix }}_elb_dns_name"
+
+    - name: Instance De-register
+      local_action:
+        module: ec2_elb
+        instance_id: "{{ prefix }}_ec2"
+        state: absent
+	 
+    - name: Terminate instances that were previously launched
+      local_action:  
+        module: ec2
+        instance_ids: "{{ prefix }}_ec2"
+        state: 'absent'
+		
+    - name: destroy elb
+      local_action:
+        module: ec2_elb_lb
+        name: "{{ prefix }}_ELB"
+        state: absent
+        
+		
+    - name: clearning security group for webservers
+      local_action:
+        module: ec2_group
+        region: "{{ region }}"
+        vpc_id: "{{ prefix }}_vpc"
+        name: "{{ prefix }}_sg_web"
+        description: security group for webservers
+		
+    - name: clearning security group for databases
+      local_action:
+        module: ec2_group
+        region: "{{ region }}"
+        vpc_id: "{{ prefix }}_vpc"
+        name: "{{ prefix }}_sg_database"
+        description: security group for databases
+		
+    - name: delete {{ prefix }}_sg_web
+        local_action:
+          module: ec2_group
+          region: "{{ region }}"
+          vpc_id: "{{ prefix }}_vpc"
+          name: "{{ prefix }}_sg_web"
+          description: security group for webservers
+          state: absent
+    - name: delete {{ prefix }}_sg_database
+        local_action
+          module: ec2_group
+          region: "{{ region }}"
+          vpc_id: "{{ prefix }}_vpc"
+          name: "{{ prefix }}_sg_database"
+          description: security group for databases
+          state: absent  
+  
+  
+    - name: delete vpc
+        local_action:
+          module: ec2_vpc
+          region: "{{ region }}"
+          vpc_id: "{{ prefix }}_vpc"
+          state: absent
+...		

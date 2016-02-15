@@ -1,0 +1,171 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    key: XXXXXXXX
+    instance_type: t2.micro
+    image: ami-d2d8fcb1
+    region: ap-southeast-2
+    prefix: test
+    az: ap-southeast-2a
+    local_ip: XXX.XXX.XXX.XXX/XX
+    domain: test.com
+  tasks:
+    - name: create vpc
+      local_action:
+        module: ec2_vpc
+        region: "{{ region }}"
+        cidr_block: 10.0.0.0/16
+        resource_tags: '{"Name":"{{ prefix }}_vpc"}'
+        subnets:
+          - cidr: 10.0.0.0/24
+            az: "{{ az }}"
+            resource_tags: '{"Name":"{{ prefix }}_subnet_public"}'
+        internet_gateway: yes	
+        route_tables:
+          - subnets:
+              - 10.0.0.0/24
+            routes:
+              - dest: 0.0.0.0/0
+                gw: igw
+            register: vpc
+
+    - name: write vpc id to host_vars/{{ prefix }}_info file
+      sudo: yes
+      local_action: shell echo "{{ prefix }}"_vpc":" "{{ vpc.vpc_id }}" >  host_vars/"{{ prefix }}"_info
+    - name: write subnet id to {{ prefix }}_info file
+      sudo: yes
+      local_action: shell echo "{{ vpc.subnets.resource_tags.Name }}"":" "{{ vpc.subnets.id }}" >> host_vars/"{{ prefix }}"_info
+
+    - name: create  security group for webservers
+      local_action:
+        module: ec2_group
+        region: "{{ region }}"
+        vpc_id: "{{ vpc.vpc_id }}"
+        name: "{{ prefix }}_sg_web"
+        description: security group for webservers
+        rules:
+          - proto: tcp
+            from_port: 80
+            to_port: 80
+            cidr_ip: 0.0.0.0/0
+          - proto: ssh
+            from_port: 22
+            to_port: 22
+            cidr_ip: {{local_ip}}
+          - proto: tcp
+            from_port: 3306
+            to_port: 3306
+            group_name: "{{ prefix }}_sg_database"
+        rules_egress:
+          - proto: tcp
+            from_port: 3306
+            to_port: 3306
+            group_name: "{{ prefix }}_sg_database"
+   
+   - name: create  security group for databases
+      local_action:
+        module: ec2_group
+        region: "{{ region }}"
+        vpc_id: "{{ vpc.vpc_id }}"
+        name: "{{ prefix }}_sg_database"
+        description: security group for databases
+        rules:
+          - proto: tcp
+            from_port: 3306
+            to_port: 3306
+            group_name: "{{ prefix }}_sg_web"
+      register: sg_db
+    - name: instance provisioning
+      local_action:
+        module: ec2
+        region: "{{ region }}"
+        key_name: "{{ key }}"
+        assign_public_ip: yes
+        instance_type: "{{ instance_type }}"
+        image: "{{ image }}"
+        wait: yes
+        group: "{{ prefix }}_sg_web"
+        instance_tags:
+          Name: "{{ prefix }}_web"
+        id: web_launch_01
+        vpc_subnet_id: "{{ test_subnet_public}}"
+    register: ec2
+
+    - name: write ec2 id to {{ prefix }}_info file
+      sudo: yes
+      local_action: shell echo "{{ prefix }}"_ec2":" "{{ ec2.instances.id }}" >>  host_vars/"{{ prefix }}"_info 
+
+    - name: Add new instances to host group
+      add_host: hostname={{ec2.instances.public_ip}} groupname={{prefix}}
+
+    - name: Wait for the instances by checking the ssh port
+      wait_for: host={{ec2.instances.public_ip}} port=22 delay=60 timeout=320 state=started
+
+    - name: create EBS
+      local_action:
+        module: ec2_vol:
+        instance: "{{ ec2.instances.id }} "
+        volume_size: 5
+        volume_type: gp2
+        delete_on_termination: yes
+        device_name: /dev/xvdf
+    register: ec2_vol	
+
+   -name: create ELB
+    local_action:
+      module: ec2_elb_lb
+      name: "{{ prefix }}_ELB"
+      security_group_names: "{{ prefix }}_sg_web"
+      region: "{{ region }}"
+      subnets: "{{ prefix }}_subnet_public"
+      purge_subnets: yes
+      state: present
+      listeners:
+        - protocol: http
+          load_balancer_port: 80
+          instance_port: 80
+    register: web_elb
+
+
+    - name: write elb_dns_name to {{ prefix }}_info file
+      sudo: yes
+      local_action: shell echo "{{ prefix }}"_elb_dns_name":" "{{ web_elb.elb.dns_name }}" >>  host_vars/"{{ prefix }}"_info
+    
+    - name: Adding Webserver to ELB
+      local_action: 
+         module: ec2_elb
+         ec2_elbs: "{{ prefix }}_ELB"
+         instance_id: "{{ ec2.instances.id }}"
+         state: 'present'
+         region: "{{ region }}"
+		 
+    - name: Update Route53 Record for WWWW
+        module: route53
+        command: create
+        overwrite: yes
+        zone: "{{ domain }}"
+        record: "www.{{ domain }}"
+        type: CNAME
+        ttl: 60
+        value: "{{ web_elb.elb.dns_name }}"
+    
+    - name: create RDS
+      local_action:
+        module: rds
+        command: create
+        instance_name: test-RDS-database
+        vpc_security_groups: {{ sg_db.group_id }} 
+        subnet: "{{ prefix }}_subnet_public"
+        db_engine: MySQL
+        size: 5
+        instance_type: db.m1.small
+        username: mysql_admin
+        password: 1nsecure
+    register: sqlrds
+    
+    - name: write rds endpoint value to {{ prefix }}_info file
+      sudo: yes
+      local_action: shell echo "{{ prefix }}"_rds_endpoint":" "{{ sqlrds.instances.endpoint }}" >>  host_vars/"{{ prefix }}"_info 	
+...

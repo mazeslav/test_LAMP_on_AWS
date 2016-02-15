@@ -1,0 +1,14 @@
+ ---
+- hosts: localhost
+  connection: local
+  vars:
+    domain: test.com 
+  tasks:
+    - name: Request page
+      shell: shell: curl --head --silent http://www.{{domain}}/index.php
+      register: result
+
+    - name: Check result
+    - shell: echo "Deployment is OK"
+      when: tresult.stdout.find("200 OK") != -1
+ ...
