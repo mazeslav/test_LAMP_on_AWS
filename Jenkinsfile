@@ -4,10 +4,10 @@ node {
         try {
             
 	
-			tools {
+			/*tools {
 					maven '3.5.2'
 					jdk 'jdk8'
-				  }
+				  }*/
 
 	
 
@@ -64,10 +64,10 @@ node {
 						 stage('Compile') {								
 
 								echo "Compile"
-								
+								sh"mvn"
 								if(GIT_BRANCH == "development") {
 
-									
+									sh "echo dev"
 									
 								}
 							}													
