@@ -27,8 +27,8 @@ node {
 					/*def url = sh(returnStdout: true, script: 'git config remote.origin.url').trim()*/
 checkout scm
 					
-					sh("echo ${scmVars.GIT_COMMIT} > git_commit.txt")
-					sh("echo ${scmVars.GIT_BRANCH} > git_branch.txt")
+					sh("echo ${scm.GIT_COMMIT} > git_commit.txt")
+					sh("echo ${scm.GIT_BRANCH} > git_branch.txt")
 					
 					def GIT_COMMIT = readFile("git_commit.txt").trim()
 					def GIT_BRANCH = readFile("git_branch.txt").trim()
