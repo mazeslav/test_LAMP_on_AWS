@@ -12,7 +12,7 @@ node {
 	
 
             stage('Checkout') {
-                echo "Checking out code"
+                sh"echo `Checking out code"
                 def scmVars = checkout([
                     $class: 'GitSCM', branches: scm.branches,
                     doGenerateSubmoduleConfigurations: scm.doGenerateSubmoduleConfigurations,
