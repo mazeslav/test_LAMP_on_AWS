@@ -13,7 +13,7 @@ node {
 
             stage('Checkout') {
                 sh"echo `Checking out code"
-                def scmVars = checkout([
+              /*  def scmVars = checkout([
                     $class: GitSCM, branches: scm.branches,
                     doGenerateSubmoduleConfigurations: scm.doGenerateSubmoduleConfigurations,
                     extensions: [
@@ -22,10 +22,10 @@ node {
                     ],
                     submoduleCfg: [],
                     userRemoteConfigs: scm.userRemoteConfigs
-                ])
+                ])*/
 		
 					/*def url = sh(returnStdout: true, script: 'git config remote.origin.url').trim()*/
-
+checkout scm
 					
 					sh("echo ${scmVars.GIT_COMMIT} > git_commit.txt")
 					sh("echo ${scmVars.GIT_BRANCH} > git_branch.txt")
